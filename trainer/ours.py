@@ -20,6 +20,7 @@ from torchvision.transforms.functional import to_pil_image
 # CLIP and Diffusion imports
 from clip import clip
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
+from transformers import CLIPTextModel, CLIPTokenizer, CLIPModel, CLIPVisionModel, CLIPImageProcessor
 from diffusers import (
     StableDiffusionPipeline, 
     StableDiffusionInstructPix2PixPipeline,
@@ -65,9 +66,28 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 # Initialize global components
 device = "cuda" if torch.cuda.is_available() else "cpu"
 _tokenizer = _Tokenizer()
-clip_model, clip_preprocess = clip.load("/home/vis-comp/mohamad.hassan/Oslocurriculum/weights/ViT-B-32.pt", device=device)
+clip_model, clip_preprocess = clip.load("ViT-B/32", device=device)
 
-
+class PromptProjector(nn.Module):
+    def __init__(self, input_dim, project_dim, output_dim, dropout):
+        super().__init__()
+        self.input_proj = nn.Linear(input_dim, project_dim)
+        self.hidden = nn.Sequential(
+            nn.LayerNorm(project_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(project_dim, project_dim),
+            nn.LayerNorm(project_dim),
+            nn.GELU(),
+            nn.Dropout(dropout)
+        )
+        self.output_proj = nn.Linear(project_dim, output_dim)
+        
+    def forward(self, x):
+        x = self.input_proj(x)
+        x = x + self.hidden(x)  # Residual connection
+        return self.output_proj(x)
+    
 def load_clip_to_cpu(cfg):
     """Load CLIP model to CPU for initialization."""
     backbone_name = cfg.MODEL.BACKBONE.NAME
@@ -148,10 +168,11 @@ class StableDiffusion(nn.Module):
         torch.manual_seed(42)
     
         self.pipe = StableDiffusionPipeline.from_pretrained(
-            "/home/vis-comp/mohamad.hassan/stable-diffusion-v1-5", 
+            model_id, 
             torch_dtype=torch.float16,  # Use float32 for better determinism
             safety_checker=None,
             requires_safety_checker=False,
+            local_files_only = True
             
         ).to(device)
         
@@ -163,6 +184,9 @@ class StableDiffusion(nn.Module):
         # Set generator seed before each use
         self.generator = torch.Generator(device=device)
         self.pipe.set_progress_bar_config(disable=True)
+    
+    
+
 
     def forward(self, batch_size, pos_prompt, neg_prompt):
         """Generate images from prompts."""
@@ -211,8 +235,8 @@ class GenerateUnknownImages(nn.Module):
 
 class CrossAttention(nn.Module):
     """Cross-attention mechanism for feature fusion."""
-    
-    def __init__(self, embed_dim, num_heads, dropout=0.25):
+    # 0.25
+    def __init__(self, embed_dim, num_heads, dropout=0.5):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(
             embed_dim, 
@@ -311,12 +335,10 @@ class PromptLearner(nn.Module):
        
         self.prompt_cls = nn.Sequential(
             nn.Linear(768, config["project_dim"]),
-            nn.LayerNorm(config["project_dim"]),
             nn.GELU(),
             nn.Dropout(p=config["dropout"]),
             nn.Linear(config["project_dim"], ctx_dim)
         )
-        # self.prompt_cls = nn.Linear(768, ctx_dim)
         self.ctx = nn.Parameter(ctx_vectors)
         self.ctx_k = nn.Parameter(ctx_vectors_unk)
         
@@ -372,7 +394,8 @@ class CustomCLIP(nn.Module):
         
         self.per_class_gate = nn.Parameter(torch.ones(len(classnames) - 1) * 0.5)
         self.cross_attention = CrossAttention(512, config["n_head"])
-        self.projector = nn.Linear(768, 512)
+        self.projector = nn.Linear(512, 512)
+        # self.projector = nn.Identity()
         
       
         self.logit_scale = clip_model.logit_scale

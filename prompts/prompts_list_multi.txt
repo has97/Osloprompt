@@ -1,0 +1,200 @@
+Tablet
+Smartwatch
+E-reader
+Smart Speaker
+Bluetooth Earbuds
+Graphic Tablet
+Standing Desk
+Charging Dock
+Electric Scooter
+Drone
+Self-driving Car
+Segway
+Gaming Console
+VR Headset
+3D Printer
+Laser Cutter
+USB Flash Drive
+External Hard Drive
+Wireless Charger
+Portable Power Bank
+Smart Glasses
+Wireless Mouse
+Mechanical Keyboard
+Docking Station
+Wireless Router
+External Monitor
+Smart Doorbell
+Action Camera
+Digital Camera
+Instant Camera
+Portable Projector
+Electric Bicycle
+Electric Car
+Jet Ski
+Hoverboard
+Personal Robot
+Robotic Vacuum
+Smart Refrigerator
+Smart Oven
+Microwave Oven
+Dishwasher
+Coffee Maker
+Electric Kettle
+Blender
+Food Processor
+Juicer
+Toaster
+Air Purifier
+Humidifier
+Dehumidifier
+Space Heater
+Fan
+Portable AC
+Smart Thermostat
+Smart Lock
+Smart Light Bulb
+Security Camera
+Motion Sensor
+Fitness Tracker
+Electric Toothbrush
+Hair Dryer
+Electric Shaver
+Hair Straightener
+Curling Iron
+Smart Mirror
+Water Bottle
+Insulated Mug
+Lunch Box
+Thermos
+Bento Box
+Yoga Mat
+Dumbbell
+Kettlebell
+Treadmill
+Exercise Bike
+Resistance Band
+Foam Roller
+Jump Rope
+Punching Bag
+Boxing Gloves
+Skis
+Snowboard
+Roller Skates
+Ice Skates
+Surfboard
+Windsurf Board
+Parachute
+Bungee Cord
+Climbing Harness
+Rock Climbing Shoes
+Camping Tent
+Sleeping Bag
+Camping Stove
+Portable Grill
+Cooler
+Hiking Boots
+Binoculars
+Telescope
+Compass
+Map
+Walkie-Talkie
+Satellite Phone
+GPS Device
+Metal Detector
+Fishing Rod
+Bait
+Tackle Box
+Kayak
+Canoe
+Paddle Board
+Life Jacket
+Diving Mask
+Snorkel
+Scuba Tank
+Wetsuit
+Flippers
+Sailboat
+Rowboat
+Submarine
+Tricycle
+Quad Bike
+Golf Cart
+Snowmobile
+Helicopter
+Space Shuttle
+Glider
+Hot Air Balloon
+Hang Glider
+Rocket
+ATV (All-Terrain Vehicle)
+Jetpack
+Hovercraft
+Electric Skateboard
+Penny Board
+Longboard
+Scooter
+Baby Stroller
+Wheelchair
+Crutches
+Walker
+Hearing Aid
+Prosthetic Limb
+Orthopedic Brace
+Medical Scanner
+Syringe
+Stethoscope
+Defibrillator
+Heart Rate Monitor
+X-ray Machine
+MRI Machine
+CT Scanner
+Dialysis Machine
+Ventilator
+Oxygen Tank
+Blood Pressure Monitor
+Thermometer
+Glucometer
+Surgical Mask
+Face Shield
+Gloves
+Lab Coat
+Scrubs
+Wheelbarrow
+Lawnmower
+Leaf Blower
+Chainsaw
+Hedge Trimmer
+Weed Whacker
+Garden Hose
+Sprinkler
+Watering Can
+Rake
+Shovel
+Trowel
+Pruning Shears
+Ladder
+Toolbox
+Screwdriver
+Hammer
+Wrench
+Pliers
+Drill
+Sander
+Saw
+Measuring Tape
+Level
+Chisel
+Paint Roller
+Paintbrush
+Nail Gun
+Sewing Machine
+Fabric Scissors
+Needle and Thread
+Knitting Needles
+Yarn
+Embroidery Hoop
+Quilt
+Pattern
+Fabric
+Thimble
