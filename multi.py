@@ -89,16 +89,20 @@ class ImageFilter(nn.Module):
             return random.sample(indices_with_brightness, batch_size)
 
 class DataTrain(Dataset):
-  def __init__(self,train_image_paths,train_domain,train_labels):
+  def __init__(self,train_image_paths,train_domain,train_labels,train=True):
     self.image_path=train_image_paths
     self.domain=train_domain
     self.labels=train_labels
+    self.train = train
 
   def __len__(self):
     return len(self.labels)
 
   def __getitem__(self,idx):
-    image = preprocess(Image.open(self.image_path[idx]))
+    if self.train:
+        image = preprocess_train(Image.open(self.image_path[idx]))
+    else:
+        image = preprocess_val(Image.open(self.image_path[idx]))
     domain=self.domain[idx] 
     domain=torch.from_numpy(np.array(domain)) 
     label=self.labels[idx] 
@@ -109,8 +113,8 @@ class DataTrain(Dataset):
     return image, domain, label, label_one_hot 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-clip_model, preprocess = clip.load("ViT-B/32", device='cpu')
-
+clip_model, preprocess = clip.load("../weights/ViT-B-32.pt", device='cpu')
+preprocess_train, preprocess_val = preprocess
 with open('prompts/prompts_list_multi.txt', 'r') as file:
     prompt_list = file.readlines()
 
@@ -126,25 +130,6 @@ repeat_transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-class DataTrain(Dataset):
-  def __init__(self,train_image_paths,train_domain,train_labels):
-    self.image_path=train_image_paths
-    self.domain=train_domain
-    self.labels=train_labels
-
-  def __len__(self):
-    return len(self.labels)
-
-  def __getitem__(self,idx):
-    image = preprocess(Image.open(self.image_path[idx]))
-    domain=self.domain[idx] 
-    domain=torch.from_numpy(np.array(domain)) 
-    label=self.labels[idx] 
-    label=torch.from_numpy(np.array(label)) 
-    # print("label",label)
-    label_one_hot=F.one_hot(label,49)
-  
-    return image, domain, label, label_one_hot
 
 parser = argparse.ArgumentParser(description='PACS Domain Adaptation Training')
 parser.add_argument('--source_domains', type=str, required=True, 
@@ -155,10 +140,14 @@ parser.add_argument('--shots', type=int, default=1,
                     help='Number of shots per class')
 parser.add_argument('--config', type=str, 
                     help='Path to config file', default='configs/pacs.yaml')
-parser.add_argument('--data_root', type=str, default='/users/student/Datasets/domainbed/pacs',
+parser.add_argument('--data_root', type=str, default='/home/vis-comp/mohamad.hassan/datasets/domainbed/pacs',
                     help='Root directory for PACS data')
 parser.add_argument('--output_dir', type=str, default='./experiments',
                     help='Output directory for results')
+parser.add_argument('--degrees', type=int, default=5,
+                    help='Degrees of rotation')
+parser.add_argument('--project_dim', type=int, default=128,
+                    help='Projection dimension for the model')
 args = parser.parse_args()
 
 import yaml
@@ -175,8 +164,8 @@ target_domains = args.target_domain
 domains = source_domains + [target_domains]
 target = domains[-1]
 shots =args.shots
-config["prompt_lr"]= 0.0012
-config["project_dim"]= 128 
+clip_model, preprocess = clip.load("../weights/ViT-B-32.pt", device='cpu',degrees=args.degrees)
+preprocess_train, preprocess_val = preprocess
 
 data_root = args.data_root
 output_dir = args.output_dir
@@ -193,9 +182,9 @@ class_names1=[]
 paths_list={}
 class_names4={}
 all_classes={}
-root1 = '/users/student/Datasets/domainbed/amazon/images'
+root1 = '/home/vis-comp/mohamad.hassan/datasets/domainbed/amazon/images'
 paths_labels =[]
-with open('/users/student/Datasets/domainbed/amazon_split.txt', 'r') as file:
+with open('/home/vis-comp/mohamad.hassan/datasets/domainbed/amazon_split.txt', 'r') as file:
     for line in file:
         parts = line.strip().split('/')
         paths = line.strip().split()[0]
@@ -231,9 +220,9 @@ image_path_dom2=[]
 label_class_dom2=[]
 label_dom2=[]
 class_names2=[]
-root2 = '/users/student/Datasets/domainbed/visda/train'
+root2 = '/home/vis-comp/mohamad.hassan/datasets/domainbed/visda/train'
 paths_labels =[]
-with open('/users/student/Datasets/domainbed/visda/visda_split.txt', 'r') as file:
+with open('/home/vis-comp/mohamad.hassan/datasets/domainbed/visda/visda_split.txt', 'r') as file:
     for line in file:
         # print(line)
         parts = line.strip().split('/')
@@ -269,9 +258,9 @@ image_path_dom3=[]
 label_class_dom3=[]
 label_dom3=[]
 class_names3=[]
-root3 = '/users/student/Datasets/domainbed/stl10/train'
+root3 = '/home/vis-comp/mohamad.hassan/datasets/domainbed/stl10/train'
 paths_labels =[]
-with open('/users/student/Datasets/domainbed/stl10/stl10_split.txt', 'r') as file:
+with open('/home/vis-comp/mohamad.hassan/datasets/domainbed/stl10/stl10_split.txt', 'r') as file:
     for line in file:
         parts = line.strip().split('/')
         paths = line.strip().split()[0]
@@ -328,8 +317,8 @@ c=0
 index=0
 target_labels = [0, 1, 5, 6, 10, 11, 14, 17, 20, 26] + list(range(31, 37)) + list(range(39, 44)) + list(range(45, 47)) + list(range(48, 68))
 known_index_dom = [0, 1, 5, 6, 10, 11, 14, 17, 20, 26] + list(range(31, 37)) + list(range(39, 44)) + list(range(45, 47))
-root4 = f'/users/student/Datasets/domainbed/domainnet'
-with open(f'/users/student/Datasets/domainbed/{target_domains}_test_new.txt', 'r') as file:
+root4 = f'/home/vis-comp/mohamad.hassan/datasets/domainbed/domainnet'
+with open(f'/home/vis-comp/mohamad.hassan/datasets/domainbed/{target_domains}_test_new.txt', 'r') as file:
     paths_labels =[]
     for line in file:
         parts = line.strip().split('/')
@@ -496,7 +485,7 @@ for group in optimizer.param_groups:
         all_params += group['params']
 scaler = GradScaler() 
 
-test_ds=DataTrain(test_image_path_final,test_label_dom_final,test_label_class_final)
+test_ds=DataTrain(test_image_path_final,test_label_dom_final,test_label_class_final, train=False)
 print(len(test_ds))
 test_dl=DataLoader(test_ds,batch_size=32, num_workers=4, shuffle=True)
 test_img, test_domain, test_label, test_label_one_hot = next(iter(test_dl))

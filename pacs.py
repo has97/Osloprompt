@@ -38,7 +38,8 @@ def seed_everything(seed: int):
     torch.backends.cudnn.benchmark = False
 seed_everything(42)
 device = "cuda" if torch.cuda.is_available() else "cpu"
-clip_model, preprocess = clip.load("ViT-B/32", device='cpu')
+clip_model, preprocess = clip.load("./weights/ViT-B-32.pt", device='cpu')
+preprocess_train, preprocess_val = preprocess
 parser = argparse.ArgumentParser(description='PACS Domain Adaptation Training')
 parser.add_argument('--source_domains', type=str, required=True, 
                     help='Comma-separated source domains')
@@ -52,9 +53,15 @@ parser.add_argument('--data_root', type=str, default='/users/student/Datasets/do
                     help='Root directory for PACS data')
 parser.add_argument('--output_dir', type=str, default='./experiments',
                     help='Output directory for results')
+parser.add_argument('--degrees', type=int, default=5,
+                    help='Degrees of rotation')     
+parser.add_argument('--project_dim', type=int, default=128,
+                    help='Projection dimension for the model')
 args = parser.parse_args()
 attri_embed = torch.from_numpy(np.load('./attributes/attribute_pacs.npy')).to(device).to(torch.float32)
 mask_embed = torch.from_numpy(np.load('./attributes/masks_pacs.npy')).to(device).to(torch.bool)
+clip_model, preprocess = clip.load("./weights/ViT-B-32.pt", device='cpu',degrees=args.degrees)
+preprocess_train, preprocess_val = preprocess
 
 with open('prompts/prompts_list_pacs.txt', 'r') as file:
     prompt_list = file.readlines()
@@ -67,16 +74,21 @@ repeat_transform = transforms.Compose([
 ])
 
 class DataTrain(Dataset):
-  def __init__(self,train_image_paths,train_domain,train_labels):
+  def __init__(self,train_image_paths,train_domain,train_labels,train=True):
     self.image_path=train_image_paths
     self.domain=train_domain
     self.labels=train_labels
+    self.train = train
 
   def __len__(self):
     return len(self.labels)
 
   def __getitem__(self,idx):
-    image = preprocess(Image.open(self.image_path[idx]))
+    if self.train:
+        image = preprocess_train(Image.open(self.image_path[idx]))
+    else:
+        image = preprocess_val(Image.open(self.image_path[idx]))
+    # image = preprocess(Image.open(self.image_path[idx]))
     domain=self.domain[idx] 
     domain=torch.from_numpy(np.array(domain)) 
     label=self.labels[idx] 
@@ -290,8 +302,7 @@ def train_epoch(model,params, unknown_image_generator, domainnames, train_loader
         label_one_hot_prev = label_one_hot_prev.to(device)
         batch = 1
 
-        unknown_posprompt1 = domainnames[random_int[0]].replace("_", " ") + " of an unknown object"
-        # unknown_posprompt1 = domainnames[random_int[0]].replace("_", " ") + " of a" + " " + random_prompts[0]
+        unknown_posprompt1 = domainnames[random_int[0]].replace("_", " ") + " of a" + " " + random_prompts[0]
         generated_unknown_images1 = unknown_image_generator(batch, unknown_posprompt1, known_classes)
 
         unknown_label_rank = len(train_prev_classnames)
@@ -317,7 +328,7 @@ def train_epoch(model,params, unknown_image_generator, domainnames, train_loader
         
         output,loss_sty,invariant,feat = model(img,attri_embed,mask_embed,label,domain,len(random_indices))
 
-        crossentropy_loss =   F.cross_entropy(output, label) +  loss_sty +(1-F.cosine_similarity(invariant,feat,dim=1)).mean()
+        crossentropy_loss =   F.cross_entropy(output, label) +  0.33*loss_sty +(1-F.cosine_similarity(invariant,feat,dim=1)).mean()
 
         loss = crossentropy_loss 
 
@@ -343,7 +354,7 @@ unknown_image_generator = GenerateUnknownImages().to(device)
 train_classnames = train_prev_classnames + ['unknown']
 print(f'length of train_classnames : {len(train_classnames)}')
 
-train_model = CustomCLIP(train_classnames, domains_open, clip_model,config)
+train_model = CustomCLIP(train_classnames, domains_open, clip_model,config,project=True)
 
 for param in train_model.parameters():
             param.requires_grad_(False)
@@ -409,7 +420,7 @@ test_domain_names.append(test_domain_name)
 test_domain_names.append(test_domain_name)
 test_domain_names.append(test_domain_name)
 
-test_ds=DataTrain(test_image_path_final,test_label_dom_final,test_label_class_final)
+test_ds=DataTrain(test_image_path_final,test_label_dom_final,test_label_class_final,train=False)
 print(len(test_ds))
 test_dl=DataLoader(test_ds,batch_size=32, num_workers=4, shuffle=True)
 test_img, test_domain, test_label, test_label_one_hot = next(iter(test_dl))
@@ -427,7 +438,7 @@ if not os.path.exists(accuracy_dir):
 accuracy_file = open(accuracy_file_path, "w")
 torch.autograd.set_detect_anomaly(True)
 
-test_model = CustomCLIP(train_classnames, test_domain_names, clip_model,config).to(device)
+test_model = CustomCLIP(train_classnames, test_domain_names, clip_model,config,project=True).to(device)
 train_model = train_model.to(device)
 
 for epoch in range(num_epochs):

@@ -40,7 +40,7 @@ seed_everything(42)
 with open('prompts/prompts_list_vlcs.txt', 'r') as file:
     prompt_list = file.readlines()
 device = "cuda" if torch.cuda.is_available() else "cpu"
-clip_model, preprocess = clip.load("ViT-B/32", device='cpu')
+
 class AvgMeter:
     """Computes and stores the average and current value."""
     def __init__(self, name="Metric"):
@@ -93,16 +93,20 @@ class ImageFilter(nn.Module):
             return random.sample(indices_with_brightness, batch_size)
 
 class DataTrain(Dataset):
-  def __init__(self,train_image_paths,train_domain,train_labels):
+  def __init__(self,train_image_paths,train_domain,train_labels,train=True):
     self.image_path=train_image_paths
     self.domain=train_domain
     self.labels=train_labels
+    self.train = train
 
   def __len__(self):
     return len(self.labels)
 
   def __getitem__(self,idx):
-    image = preprocess(Image.open(self.image_path[idx]))
+    if self.train:
+        image = preprocess_train(Image.open(self.image_path[idx]))
+    else:
+        image = preprocess_val(Image.open(self.image_path[idx]))
     domain=self.domain[idx] 
     domain=torch.from_numpy(np.array(domain)) 
     label=self.labels[idx] 
@@ -125,6 +129,10 @@ parser.add_argument('--data_root', type=str, default='/users/student/Datasets/do
                     help='Root directory for PACS data')
 parser.add_argument('--output_dir', type=str, default='./experiments',
                     help='Output directory for results')
+parser.add_argument('--degrees', type=int, default=10,
+                    help='Degrees of rotation')
+parser.add_argument('--project_dim', type=int, default=128,
+                    help='Projection dimension for the model')
 args = parser.parse_args()
 
 source_domains = args.source_domains.split(',')
@@ -134,6 +142,8 @@ data_root = args.data_root
 output_dir = args.output_dir
 domains = source_domains + [target_domain]
 target = domains[-1]
+clip_model, preprocess = clip.load("../weights/ViT-B-32.pt", device='cpu',degrees=args.degrees)
+preprocess_train, preprocess_val = preprocess
 import yaml
 
 with open(args.config, 'r') as f:
@@ -306,7 +316,7 @@ def train_epoch(model,params, unknown_image_generator, domainnames, train_loader
         # with profile(with_flops=True) as prof:
 
         output,loss_sty,invariant,feat = model(img,attri_embed,mask_embed,label,domain,len(random_indices))
-        #0.5
+        #0.5,label_smoothing=0.05
         crossentropy_loss =     F.cross_entropy(output, label) + 0.33*loss_sty +(1-F.cosine_similarity(invariant,feat,dim=1)).mean()
     
         loss = crossentropy_loss 
@@ -328,9 +338,9 @@ unknown_image_generator = GenerateUnknownImages().to(device)
 train_classnames = train_prev_classnames + ['unknown']
 print(f'length of train_classnames : {len(train_classnames)}')
 domains_open = ['image', 'photo', 'picture']
-if shots==1:
-    config["prompt_lr"] = 0.0017
-train_model = CustomCLIP(train_classnames, domains_open, clip_model,config)
+# if shots==1:
+#     config["prompt_lr"] = 0.0017
+train_model = CustomCLIP(train_classnames, domains_open, clip_model,config,project=True)
 
 for param in train_model.parameters():
             param.requires_grad_(False)
@@ -339,8 +349,11 @@ for p in train_model.cross_attention.parameters():
 train_model.projector.requires_grad = True
 for p in train_model.promptlearner.parameters():
     p.requires_grad = True
+
 params = [
-            {"params": train_model.promptlearner.parameters(),'lr' : config["prompt_lr"]},
+            # {"params": prompt_cls_params,'lr' :0.0001},
+            # {"params": prompt_other_params,'lr' :config["prompt_lr"]},
+            {"params": train_model.promptlearner.parameters(), 'lr': config["prompt_lr"]},
             {"params": train_model.projector.parameters(),'lr' : config["projector_lr"]},
             {"params": train_model.cross_attention.parameters(),'lr' : config["cross_attention_lr"]},
         ]
@@ -404,7 +417,7 @@ test_domain_names.append(test_domain_name)
 ############### Making the test dataloader ##################
 ''' 
 
-test_ds=DataTrain(test_image_path_final,test_label_dom_final,test_label_class_final)
+test_ds=DataTrain(test_image_path_final,test_label_dom_final,test_label_class_final,train=False)
 print(len(test_ds))
 test_dl=DataLoader(test_ds,batch_size=32, num_workers=4, shuffle=True)
 test_img, test_domain, test_label, test_label_one_hot = next(iter(test_dl))
@@ -421,7 +434,7 @@ if not os.path.exists(accuracy_dir):
 accuracy_file = open(accuracy_file_path, "w")
 torch.autograd.set_detect_anomaly(True)
 
-test_model = CustomCLIP(train_classnames, test_domain_names, clip_model,config).to(device)
+test_model = CustomCLIP(train_classnames, test_domain_names, clip_model,config,project=True).to(device)
 train_model = train_model.to(device)
 
 for epoch in range(num_epochs):

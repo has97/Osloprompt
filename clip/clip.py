@@ -6,7 +6,10 @@ from typing import Any, Union, List
 
 import torch
 from PIL import Image
-from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
+from torchvision.transforms import (CenterCrop, Compose, InterpolationMode,
+                                    Normalize, RandomHorizontalFlip,
+                                    RandomPerspective, RandomRotation, Resize,
+                                    ToTensor)
 from tqdm import tqdm
 
 from .model import build_model
@@ -73,14 +76,25 @@ def _convert_image_to_rgb(image):
     return image.convert("RGB")
 
 
-def _transform(n_px):
-    return Compose([
+def _transform(n_px,rotation_degrees=5):
+    train_transform = Compose([
+        Resize(n_px, interpolation=BICUBIC),
+        CenterCrop(n_px),
+        RandomHorizontalFlip(),
+        RandomPerspective(),
+        RandomRotation(degrees=rotation_degrees),
+        _convert_image_to_rgb,
+        ToTensor(),
+        Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+    ])
+    val_transform = Compose([
         Resize(n_px, interpolation=BICUBIC),
         CenterCrop(n_px),
         _convert_image_to_rgb,
         ToTensor(),
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
+    return train_transform, val_transform
 
 
 def available_models() -> List[str]:
@@ -88,7 +102,7 @@ def available_models() -> List[str]:
     return list(_MODELS.keys())
 
 
-def load(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_available() else "cpu", jit: bool = False, download_root: str = None):
+def load(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_available() else "cpu", jit: bool = False, download_root: str = None, degrees: int = 5):
     """Load a CLIP model
 
     Parameters
@@ -187,7 +201,7 @@ def load(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_a
 
         model.float()
 
-    return model, _transform(model.input_resolution.item())
+    return model, _transform(model.input_resolution.item(),rotation_degrees=degrees)
 
 
 def tokenize(texts: Union[str, List[str]], context_length: int = 77, truncate: bool = False) -> torch.LongTensor:

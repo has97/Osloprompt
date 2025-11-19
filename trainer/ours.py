@@ -66,7 +66,8 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 # Initialize global components
 device = "cuda" if torch.cuda.is_available() else "cpu"
 _tokenizer = _Tokenizer()
-clip_model, clip_preprocess = clip.load("ViT-B/32", device=device)
+# clip_model, clip_preprocess = clip.load("ViT-B/32", device=device)
+clip_model, clip_preprocess = clip.load("../weights/ViT-B-32.pt", device=device)
 
 class PromptProjector(nn.Module):
     def __init__(self, input_dim, project_dim, output_dim, dropout):
@@ -112,6 +113,9 @@ def get_image_transforms():
     resize_transform = transforms.Compose([
         transforms.ToPILImage(),
         transforms.Resize((224, 224)),
+        # RandomHorizontalFlip(),
+        # RandomPerspective(),
+        # RandomRotation(degrees=5),
         transforms.ToTensor(),
     ])
     
@@ -168,7 +172,7 @@ class StableDiffusion(nn.Module):
         torch.manual_seed(42)
     
         self.pipe = StableDiffusionPipeline.from_pretrained(
-            model_id, 
+            "/home/vis-comp/mohamad.hassan/stable-diffusion-v1-5", 
             torch_dtype=torch.float16,  # Use float32 for better determinism
             safety_checker=None,
             requires_safety_checker=False,
@@ -317,7 +321,7 @@ class AttFlat(nn.Module):
 class PromptLearner(nn.Module):
     """Learnable prompt generation for CLIP."""
     
-    def __init__(self, classnames, clip_model, n_ctx, config):
+    def __init__(self, classnames, clip_model, n_ctx, config,project=False):
         super().__init__()
         # seed_everything(42)
         self.n_cls = len(classnames)
@@ -332,13 +336,17 @@ class PromptLearner(nn.Module):
         ctx_vectors_unk = torch.empty(2, ctx_dim, dtype=dtype)
         nn.init.normal_(ctx_vectors_unk, std=0.02)
         
-       
-        self.prompt_cls = nn.Sequential(
-            nn.Linear(768, config["project_dim"]),
-            nn.GELU(),
-            nn.Dropout(p=config["dropout"]),
-            nn.Linear(config["project_dim"], ctx_dim)
-        )
+        if project:
+            self.prompt_cls = nn.Sequential(
+                nn.Linear(768, config["project_dim"]),
+                nn.GELU(),
+                nn.Dropout(p=config["dropout"]),
+                nn.Linear(config["project_dim"], ctx_dim)
+            )
+        else:
+            self.prompt_cls = nn.Sequential(
+                                nn.Linear(768, ctx_dim)
+                            )
         self.ctx = nn.Parameter(ctx_vectors)
         self.ctx_k = nn.Parameter(ctx_vectors_unk)
         
@@ -377,13 +385,13 @@ class PromptLearner(nn.Module):
 class CustomCLIP(nn.Module):
     """Custom CLIP model with prompt learning and style adaptation."""
     
-    def __init__(self, classnames: List[str], domainnames: List[str], clip_model: nn.Module, config, gated=False):
+    def __init__(self, classnames: List[str], domainnames: List[str], clip_model: nn.Module, config, gated=False,project=False):
         super().__init__()
         # seed_everything(42)
         self.ctx = config["n_ctx"]
         self.image_encoder = clip_model.visual
         self.text_encoder = TextEncoder(clip_model)
-        self.promptlearner = PromptLearner(classnames, clip_model, self.ctx, config)
+        self.promptlearner = PromptLearner(classnames, clip_model, self.ctx, config,project=project)
         
         
         self.prompt_mlp = nn.Sequential(

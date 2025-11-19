@@ -56,14 +56,14 @@ def seed_everything(seed: int):
 seed_everything(42)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-clip_model, preprocess = clip.load("ViT-B/32", device='cpu')
+
 
 with open('prompts/prompts_list_office.txt', 'r') as file:
     prompt_list = file.readlines()
 
             
-attri_embed = torch.from_numpy(np.load('./attributes/attribute_office_4.npy')).to(device).to(torch.float32)
-mask_embed = torch.from_numpy(np.load('./attributes/masks_office_4.npy')).to(device).to(torch.bool)
+attri_embed = torch.from_numpy(np.load('./attributes/attribute_office.npy')).to(device).to(torch.float32)
+mask_embed = torch.from_numpy(np.load('./attributes/masks_office.npy')).to(device).to(torch.bool)
 
 # Remove any trailing newline characters
 prompt_list = [line.strip() for line in prompt_list]
@@ -74,16 +74,20 @@ repeat_transform = transforms.Compose([
 ])
 
 class DataTrain(Dataset):
-  def __init__(self,train_image_paths,train_domain,train_labels):
+  def __init__(self,train_image_paths,train_domain,train_labels, train=True):
     self.image_path=train_image_paths
     self.domain=train_domain
     self.labels=train_labels
+    self.train = train
 
   def __len__(self):
     return len(self.labels)
 
   def __getitem__(self,idx):
-    image = preprocess(Image.open(self.image_path[idx]))
+    if self.train:
+        image = preprocess_train(Image.open(self.image_path[idx]))
+    else:
+        image = preprocess_val(Image.open(self.image_path[idx]))
     domain=self.domain[idx] 
     domain=torch.from_numpy(np.array(domain)) 
     label=self.labels[idx] 
@@ -106,6 +110,10 @@ parser.add_argument('--data_root', type=str, default='/users/student/Datasets/do
                     help='Root directory for PACS data')
 parser.add_argument('--output_dir', type=str, default='./experiments',
                     help='Output directory for results')
+parser.add_argument('--degrees', type=int, default=0,
+                    help='Degrees of rotation')
+parser.add_argument('--project_dim', type=int, default=128,
+                    help='Projection dimension for the model')                    
 args = parser.parse_args()
 
 import yaml
@@ -125,7 +133,8 @@ shots =args.shots
 
 data_root = args.data_root
 output_dir = args.output_dir
-
+clip_model, preprocess = clip.load("../weights/ViT-B-32.pt", device='cpu',degrees=args.degrees)
+preprocess_train, preprocess_val = preprocess
 ######### source domain 1 ########################
 
 image_path_dom1=[]
@@ -236,9 +245,9 @@ domains_open =  domain_names
 batchsize = config["batch_size"] #9
 train_prev_ds=DataTrain(image_path_final,label_dom_final,label_class_final)
 print(f'length of train_prev_ds: {len(train_prev_ds)}')
-if args.shots == 1:
-    config["project_dim"] /= 2
-    config["prompt_lr"] = 0.0016
+# if args.shots == 1:
+#     config["project_dim"] /= 2
+#     config["prompt_lr"] = 0.0016
 train_dl=DataLoader(train_prev_ds,batch_size=batchsize, num_workers=2, shuffle=True)
 img_prev, domain_prev, label_prev, label_prev_one_hot = next(iter(train_dl))
 
@@ -378,7 +387,7 @@ unknown_image_generator = GenerateUnknownImages().to(device)
 train_classnames = train_prev_classnames + ['unknown']
 print(f'length of train_classnames : {len(train_classnames)}')
 
-train_model = CustomCLIP(train_classnames, domains_open, clip_model,config)
+train_model = CustomCLIP(train_classnames, domains_open, clip_model,config,project=True)
 
 for param in train_model.parameters():
             param.requires_grad_(False)
@@ -448,7 +457,7 @@ test_domain_names.append(test_domain_name)
 test_domain_names.append(test_domain_name)
 test_domain_names.append(test_domain_name)
 
-test_ds=DataTrain(test_image_path_final,test_label_dom_final,test_label_class_final)
+test_ds=DataTrain(test_image_path_final,test_label_dom_final,test_label_class_final,train=False)
 print(len(test_ds))
 test_dl=DataLoader(test_ds,batch_size=32, num_workers=4, shuffle=True)
 test_img, test_domain, test_label, test_label_one_hot = next(iter(test_dl))
@@ -465,7 +474,7 @@ if not os.path.exists(accuracy_dir):
 accuracy_file = open(accuracy_file_path, "w")
 torch.autograd.set_detect_anomaly(True)
 
-test_model = CustomCLIP(train_classnames, test_domain_names, clip_model,config).to(device)
+test_model = CustomCLIP(train_classnames, test_domain_names, clip_model,config,project=True).to(device)
 train_model = train_model.to(device)
 for epoch in range(num_epochs):
     closed_set_features = []    

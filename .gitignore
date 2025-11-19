@@ -1,0 +1,5 @@
+experiments_*/
+out_*/
+jobs*/
+*/__pycache__/
+*.sh
