@@ -154,6 +154,12 @@ import yaml
 # Load the configuration from the YAML file
 with open(args.config, 'r') as f:
     config = yaml.safe_load(f)
+
+args_dict = vars(args)
+
+for key, value in args_dict.items():
+    config[key] = value
+
 # Split the source domains string into a list
 source_domains = args.source_domains.split(',')
 target_domain = args.target_domain
@@ -296,19 +302,19 @@ def train_epoch(model,params, unknown_image_generator, domainnames, train_loader
         domain_prev = domain_prev.to(device)
 
         random_prompts = random.sample(prompt_list, 1)
-        random_int = random.sample([0,1,2], 1)
+        random_int = epoch %3
         t+=1
         label_prev = label_prev.to(device)
         label_one_hot_prev = label_one_hot_prev.to(device)
         batch = 1
 
-        unknown_posprompt1 = domainnames[random_int[0]].replace("_", " ") + " of a" + " " + random_prompts[0]
+        unknown_posprompt1 = domainnames[random_int].replace("_", " ") + " of a" + " " + random_prompts[0]
         generated_unknown_images1 = unknown_image_generator(batch, unknown_posprompt1, known_classes)
 
         unknown_label_rank = len(train_prev_classnames)
         unknown_label = torch.full((generated_unknown_images1.shape[0],), unknown_label_rank).to(device)
         
-        unknown_domain1 = torch.full((generated_unknown_images1.shape[0],), random_int[0]).to(device)
+        unknown_domain1 = torch.full((generated_unknown_images1.shape[0],), random_int).to(device)
         generated_unknown_images = generated_unknown_images1
         # print(generated_unknown_images)
         unknown_domains = unknown_domain1
@@ -343,8 +349,8 @@ def train_epoch(model,params, unknown_image_generator, domainnames, train_loader
         loss_meter.update(loss.item(), count)
 
         acc = compute_accuracy(output, label)[0].item()
-        # accuracy_meter.update(acc, count)
-        print("accuracy:", accuracy_meter.avg)
+        accuracy_meter.update(acc, count)
+        # print("accuracy:", accuracy_meter.avg)
 
 
     return loss_meter, accuracy_meter.avg

@@ -49,10 +49,6 @@ def seed_everything(seed: int):
     # CUDA settings
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    torch.backends.cuda.enable_flash_sdp(False)
-    torch.backends.cuda.enable_mem_efficient_sdp(False)
-    torch.backends.cuda.enable_math_sdp(True)
-    
     # Additional deterministic settings
     os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
     torch.use_deterministic_algorithms(True, warn_only=True)
@@ -67,7 +63,7 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 device = "cuda" if torch.cuda.is_available() else "cpu"
 _tokenizer = _Tokenizer()
 # clip_model, clip_preprocess = clip.load("ViT-B/32", device=device)
-clip_model, clip_preprocess = clip.load("../weights/ViT-B-32.pt", device=device)
+clip_model, clip_preprocess = clip.load("./weights/ViT-B-32.pt", device=device)
 
 class PromptProjector(nn.Module):
     def __init__(self, input_dim, project_dim, output_dim, dropout):
@@ -180,13 +176,13 @@ class StableDiffusion(nn.Module):
             
         ).to(device)
         
-        self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(
-            self.pipe.scheduler.config,
-            use_karras_sigmas=False  # Disable for determinism
-        )
+        # self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+        #     self.pipe.scheduler.config,
+        #     use_karras_sigmas=False  # Disable for determinism
+        # )
         
         # Set generator seed before each use
-        self.generator = torch.Generator(device=device)
+        # self.generator = torch.Generator(device=device)
         self.pipe.set_progress_bar_config(disable=True)
     
     
@@ -205,7 +201,7 @@ class StableDiffusion(nn.Module):
                     prompt=positive_prompts[i],
                     negative_prompt=negative_prompts[i],
                     guidance_scale=15,
-                    generator=self.generator,
+                    # generator=self.generator,
                 )
                 generated_images.append(batch_output.images[0])
         

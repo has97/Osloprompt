@@ -129,7 +129,7 @@ parser.add_argument('--data_root', type=str, default='/users/student/Datasets/do
                     help='Root directory for PACS data')
 parser.add_argument('--output_dir', type=str, default='./experiments',
                     help='Output directory for results')
-parser.add_argument('--degrees', type=int, default=10,
+parser.add_argument('--degrees', type=int, default=5,
                     help='Degrees of rotation')
 parser.add_argument('--project_dim', type=int, default=128,
                     help='Projection dimension for the model')
@@ -142,12 +142,17 @@ data_root = args.data_root
 output_dir = args.output_dir
 domains = source_domains + [target_domain]
 target = domains[-1]
-clip_model, preprocess = clip.load("../weights/ViT-B-32.pt", device='cpu',degrees=args.degrees)
+clip_model, preprocess = clip.load("./weights/ViT-B-32.pt", device='cpu',degrees=args.degrees)
 preprocess_train, preprocess_val = preprocess
 import yaml
 
 with open(args.config, 'r') as f:
     config = yaml.safe_load(f)
+
+args_dict = vars(args)
+
+for key, value in args_dict.items():
+    config[key] = value
 
 attri_embed = torch.from_numpy(np.load('./attributes/attribute_vlcs.npy')).to(device).to(torch.float32)
 mask_embed = torch.from_numpy(np.load('./attributes/masks_vlcs.npy')).to(device).to(torch.bool)
